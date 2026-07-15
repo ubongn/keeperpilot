@@ -1,0 +1,22 @@
+# KeeperPilot — standalone deployment.
+# Boots the agent loop + x402 gateway + audit dashboard in one container.
+#
+#   cp .env.example .env  # fill in KH_API_KEY, KH_WALLET_ADDRESS, KH_NETWORK=sepolia
+#   docker compose up --build
+#   open http://localhost:3000
+
+services:
+  keeperpilot:
+    build: .
+    image: keeperpilot:latest
+    container_name: keeperpilot
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"   # audit dashboard
+      - "8787:8787"   # x402 pay-per-execution gateway
+    environment:
+      # safe default: validate only, never broadcast, until you flip it off
+      KH_DRY_RUN: ${KH_DRY_RUN:-true}
+      KH_NETWORK: ${KH_NETWORK:-sepolia}
+      AGENT_LOOP_MS: ${AGENT_LOOP_MS:-0}

@@ -1,0 +1,37 @@
+{
+  "name": "keeperpilot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous onchain agent that executes real transactions through KeeperHub — with an x402 pay-per-execution gateway and live audit-trail dashboard.",
+  "type": "module",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "demo:exec": "tsx scripts/demo-execution.ts",
+    "demo:x402": "tsx scripts/demo-x402.ts",
+    "agent:once": "tsx scripts/agent-once.ts"
+  },
+  "dependencies": {
+    "viem": "^2.21.0",
+    "@x402/express": "^2.18.0",
+    "@x402/evm": "^2.18.0",
+    "@x402/core": "^2.18.0",
+    "express": "^4.19.2",
+    "dotenv": "^16.4.5",
+    "pino": "^9.3.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.4",
+    "tsx": "^4.16.5",
+    "vitest": "^2.0.5",
+    "@types/node": "^20.14.15",
+    "@types/express": "^4.17.21"
+  }
+}
