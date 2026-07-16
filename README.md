@@ -187,4 +187,4 @@ docs/
 
 ## License
 
-MIT — built by a hackathon team for the KeeperHub Agents Onchain Hackathon.
+MIT — built by Ubong for the KeeperHub Agents Onchain Hackathon.
