@@ -56,7 +56,16 @@ async function main() {
   const dashPort = envInt('DASH_PORT', 3000);
   const x402Port = envInt('X402_PORT', 8787);
 
-  const dashboardApp = createDashboard(audit);
+  const dashboardApp = createDashboard({
+    audit,
+    strategy: {
+      targetEthPct: envInt('AGENT_TARGET_ETH', 50),
+      targetUsdcPct: envInt('AGENT_TARGET_USDC', 50),
+      driftThresholdPct: envInt('AGENT_DRIFT_THRESHOLD_PCT', 5),
+    },
+    network,
+    walletAddress: env('KH_WALLET_ADDRESS'),
+  });
   const gatewayApp = createGateway({
     client,
     audit,

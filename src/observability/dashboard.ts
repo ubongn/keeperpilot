@@ -1,21 +1,109 @@
-// src/observability/dashboard.ts — live audit-trail dashboard (judging criterion #2/3).
+// src/observability/dashboard.ts — premium portfolio + audit dashboard.
 //
-// Serves a single-page UI showing every agent action: reads, decisions, real tx hashes +
-// explorer links, retries, gas (sponsored), and x402 payments. Backed by the AuditLog,
-// with an SSE stream for live updates.
+// Serves a single-page UI showing:
+//   • Portfolio overview (ETH, USDC, total value, current vs target allocation)
+//   • Strategy panel (targets, drift threshold, current drift %)
+//   • Agent status (running, last decision, last action)
+//   • Transaction history (real onchain tx hashes + explorer links)
+//   • x402 gateway info
+//   • Live audit trail feed (SSE)
 
 import express from 'express';
 import type { AuditLog } from './audit.js';
 
-export function createDashboard(audit: AuditLog) {
+export interface DashboardContext {
+  audit: AuditLog;
+  strategy?: {
+    targetEthPct: number;
+    targetUsdcPct: number;
+    driftThresholdPct: number;
+  };
+  network?: string;
+  walletAddress?: string;
+  x402Port?: number;
+}
+
+export function createDashboard(ctx: DashboardContext) {
+  const { audit } = ctx;
   const app = express();
 
-  // recent entries (JSON)
+  app.use(express.json());
+
+  // ── Portfolio API: reconstruct state from latest audit reads ──
+  app.get('/api/portfolio', (_req, res) => {
+    const entries = audit.list(200);
+    const stateEntries = entries.filter((e) => e.kind === 'read' && e.data && (e.data as any).eth !== undefined);
+    const latest = stateEntries[0];
+    const eth = latest ? Number((latest.data as any).eth) : 0;
+    const usdc = latest ? Number((latest.data as any).usdc) : 0;
+    const ethPrice = latest ? Number((latest.data as any).ethPriceUsd) : 3000;
+    const ethValue = eth * ethPrice;
+    const usdcValue = usdc;
+    const total = ethValue + usdcValue;
+    const ethPct = total > 0 ? (ethValue / total) * 100 : 0;
+    const usdcPct = total > 0 ? (usdcValue / total) * 100 : 0;
+
+    const targetEth = ctx.strategy?.targetEthPct ?? 50;
+    const targetUsdc = ctx.strategy?.targetUsdcPct ?? 50;
+    const drift = Math.abs(ethPct - targetEth);
+
+    res.json({
+      eth: eth.toFixed(4),
+      usdc: usdc.toFixed(2),
+      ethPrice: ethPrice.toFixed(2),
+      ethValue: ethValue.toFixed(2),
+      usdcValue: usdcValue.toFixed(2),
+      total: total.toFixed(2),
+      allocation: { eth: ethPct.toFixed(1), usdc: usdcPct.toFixed(1) },
+      targets: { eth: targetEth, usdc: targetUsdc },
+      drift: drift.toFixed(1),
+      driftThreshold: ctx.strategy?.driftThresholdPct ?? 5,
+      wallet: ctx.walletAddress || '—',
+      network: ctx.network || '11155111',
+    });
+  });
+
+  // ── Transactions API: extract all onchain txs from audit ──
+  app.get('/api/transactions', (_req, res) => {
+    const entries = audit.list(500);
+    const txs = entries
+      .filter((e) => e.transactionHash)
+      .map((e) => ({
+        hash: e.transactionHash,
+        link: e.transactionLink,
+        kind: e.kind,
+        message: e.message,
+        ts: e.ts,
+        network: e.network,
+        status: (e.data as any)?.status,
+        gasUsedWei: (e.data as any)?.gasUsedWei,
+      }));
+    res.json({ count: txs.length, transactions: txs });
+  });
+
+  // ── Agent Status API ──
+  app.get('/api/agent', (_req, res) => {
+    const entries = audit.list(50);
+    const systemEntries = entries.filter((e) => e.kind === 'system');
+    const lastDecision = entries.find((e) => e.kind === 'decision');
+    const lastExecute = entries.find((e) => e.kind === 'execute');
+    res.json({
+      status: 'active',
+      network: ctx.network || '11155111',
+      startedAt: systemEntries[systemEntries.length - 1]?.ts || null,
+      lastDecision: lastDecision?.message || null,
+      lastDecisionTs: lastDecision?.ts || null,
+      lastExecution: lastExecute?.message || null,
+      lastExecutionTs: lastExecute?.ts || null,
+    });
+  });
+
+  // ── Audit entries (JSON) ──
   app.get('/api/audit', (_req, res) => {
     res.json(audit.list(200));
   });
 
-  // Server-Sent Events: push new entries as they happen
+  // ── SSE: live updates ──
   app.get('/api/audit/stream', (req, res) => {
     res.set('Content-Type', 'text/event-stream');
     res.set('Cache-Control', 'no-cache');
@@ -31,7 +119,7 @@ export function createDashboard(audit: AuditLog) {
     });
   });
 
-  // the single-page dashboard
+  // ── Dashboard HTML ──
   app.get('/', (_req, res) => {
     res.type('html').send(DASHBOARD_HTML);
   });
@@ -39,10 +127,10 @@ export function createDashboard(audit: AuditLog) {
   return app;
 }
 
-export async function startDashboard(audit: AuditLog, port: number) {
-  const app = createDashboard(audit);
+export async function startDashboard(ctx: DashboardContext, port: number) {
+  const app = createDashboard(ctx);
   const server = app.listen(port, () => {
-    audit.record({ kind: 'system', level: 'info', message: `dashboard on http://localhost:${port}` });
+    ctx.audit.record({ kind: 'system', level: 'info', message: `PaaS server on :${port} (dashboard + x402 combined)` });
   });
   return server;
 }
@@ -50,321 +138,276 @@ export async function startDashboard(audit: AuditLog, port: number) {
 const DASHBOARD_HTML = /* html */ `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>KeeperPilot — Onchain Agent Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<title>KeeperPilot — Onchain Portfolio Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 <style>
   :root{
     --bg:#f5f6f9;
     --bg-grad:radial-gradient(1200px 600px at 80% -10%,#eef2ff 0%,rgba(238,242,255,0) 55%),radial-gradient(900px 500px at -10% 10%,#f0fdf4 0%,rgba(240,253,244,0) 50%),#f5f6f9;
-    --card:#ffffff;
-    --card-2:#fbfcfe;
-    --border:#e8eaf0;
-    --border-strong:#d6dae3;
-    --text:#14171f;
-    --text-2:#565f70;
-    --text-3:#8a93a3;
-    --lantern:#7c3aed;
-    --lantern-soft:#f3eeff;
-    --acc:#059669;
-    --acc-soft:#d1fae5;
-    --warn:#d97706;
-    --warn-soft:#fef3c7;
-    --err:#dc2626;
-    --err-soft:#fee2e2;
-    --blue:#2563eb;
-    --blue-soft:#dbeafe;
+    --card:#fff;--card-2:#fbfcfe;
+    --border:#e8eaf0;--border-s:#d6dae3;
+    --text:#14171f;--text-2:#565f70;--text-3:#8a93a3;
+    --purple:#7c3aed;--purple-s:#f3eeff;
+    --acc:#059669;--acc-s:#d1fae5;
+    --warn:#d97706;--warn-s:#fef3c7;
+    --err:#dc2626;--err-s:#fee2e2;
+    --blue:#2563eb;--blue-s:#dbeafe;
     --shadow-sm:0 1px 2px rgba(20,24,35,.04),0 2px 6px rgba(20,24,35,.05);
     --shadow-md:0 4px 14px rgba(20,24,35,.07),0 2px 4px rgba(20,24,35,.04);
-    --radius:16px;
-    --radius-sm:10px;
-    --ease:cubic-bezier(.22,.61,.36,1);
+    --r:16px;--r-sm:10px;--ease:cubic-bezier(.22,.61,.36,1);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{
-    font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
-    background:var(--bg-grad);background-attachment:fixed;
-    color:var(--text);-webkit-font-smoothing:antialiased;
-    font-size:14px;line-height:1.5;min-height:100vh;
-  }
+  body{font-family:'Inter',sans-serif;background:var(--bg-grad);background-attachment:fixed;color:var(--text);-webkit-font-smoothing:antialiased;font-size:14px;min-height:100vh}
+  .mono{font-family:'JetBrains Mono',monospace}
 
-  /* ── Header ── */
-  header{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:16px 32px;
-    background:rgba(255,255,255,.82);
-    backdrop-filter:saturate(180%) blur(16px);
-    -webkit-backdrop-filter:saturate(180%) blur(16px);
-    border-bottom:1px solid var(--border);
-    position:sticky;top:0;z-index:20;
-  }
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;background:rgba(255,255,255,.82);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:20}
   .brand{display:flex;align-items:center;gap:14px}
-  .logo{
-    width:40px;height:40px;border-radius:12px;
-    background:linear-gradient(135deg,var(--lantern),#a78bfa);
-    display:flex;align-items:center;justify-content:center;
-    font-size:22px;box-shadow:0 4px 12px rgba(124,58,237,.3);
-  }
+  .logo{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--purple),#a78bfa);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 4px 12px rgba(124,58,237,.3)}
   .brand h1{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .brand .sub{font-size:12px;color:var(--text-3);font-weight:500}
-  .header-right{display:flex;align-items:center;gap:12px}
-  .status-badge{
-    display:flex;align-items:center;gap:7px;
-    background:var(--acc-soft);color:var(--acc);
-    font-size:12px;font-weight:700;
-    padding:5px 14px;border-radius:999px;
-    border:1px solid #6ee7b7;
-  }
-  .live-dot{
-    width:8px;height:8px;border-radius:50%;background:var(--acc);
-    animation:pulse 2s infinite;
-  }
+  .header-right{display:flex;align-items:center;gap:10px}
+  .badge-live{display:flex;align-items:center;gap:7px;background:var(--acc-s);color:var(--acc);font-size:12px;font-weight:700;padding:6px 14px;border-radius:999px;border:1px solid #6ee7b7}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--acc);animation:pulse 2s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+  .net-pill{background:var(--blue-s);color:var(--blue);font-size:11px;font-weight:700;padding:5px 12px;border-radius:999px}
 
-  /* ── Stats Bar ── */
-  .stats-bar{
-    display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
-    gap:14px;padding:24px 32px;
-  }
-  .stat-card{
-    background:var(--card);border:1px solid var(--border);
-    border-radius:var(--radius);padding:18px 20px;
-    box-shadow:var(--shadow-sm);
-    transition:transform .2s var(--ease),box-shadow .2s var(--ease);
-  }
-  .stat-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
-  .stat-icon{font-size:20px;margin-bottom:8px}
-  .stat-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:4px}
-  .stat-value{font-size:22px;font-weight:800;font-family:'JetBrains Mono',monospace;letter-spacing:-.02em}
-  .stat-value.green{color:var(--acc)}
-  .stat-value.purple{color:var(--lantern)}
-  .stat-value.blue{color:var(--blue)}
-  .stat-value.orange{color:var(--warn)}
+  main{padding:24px 32px 48px;max-width:1200px;margin:0 auto}
+  .section-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:12px;display:flex;align-items:center;gap:8px}
 
-  /* ── Feed Container ── */
-  main{padding:0 32px 40px}
-  .feed-header{
-    display:flex;align-items:center;justify-content:space-between;
-    margin-bottom:16px;
-  }
-  .feed-header h2{font-size:16px;font-weight:700}
-  .feed-count{font-size:13px;color:var(--text-3);font-weight:500}
+  .p-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px}
+  .p-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:20px;box-shadow:var(--shadow-sm);transition:transform .2s var(--ease),box-shadow .2s var(--ease)}
+  .p-card:hover{transform:translateY(-2px);box-shadow:var(--shadow-md)}
+  .p-card .icon{font-size:22px;margin-bottom:10px}
+  .p-card .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);margin-bottom:4px}
+  .p-card .value{font-size:24px;font-weight:800;font-family:'JetBrains Mono',monospace;letter-spacing:-.02em}
+  .p-card .sub{font-size:12px;color:var(--text-2);margin-top:3px}
+  .v-purple{color:var(--purple)}.v-green{color:var(--acc)}.v-blue{color:var(--blue)}.v-orange{color:var(--warn)}
 
-  .feed-card{
-    background:var(--card);border:1px solid var(--border);
-    border-radius:var(--radius);overflow:hidden;
-    box-shadow:var(--shadow-sm);
-  }
+  .wallet-card{background:linear-gradient(135deg,#1e1b4b,#312e81);color:#fff;border-radius:var(--r);padding:24px;box-shadow:var(--shadow-md);margin-bottom:24px}
+  .wallet-card .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a5b4fc;margin-bottom:6px}
+  .wallet-card .addr{font-family:'JetBrains Mono',monospace;font-size:16px;font-weight:700;word-break:break-all}
+  .wallet-card .net{display:inline-flex;align-items:center;gap:5px;background:rgba(255,255,255,.15);padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;margin-top:10px}
 
-  /* ── Event Rows ── */
-  .row{
-    display:grid;grid-template-columns:auto 130px 1fr auto;
-    gap:16px;padding:14px 24px;
-    border-bottom:1px solid var(--border);
-    align-items:center;transition:background .15s var(--ease);
-    animation:slideIn .3s var(--ease);
-  }
-  .row:last-child{border-bottom:none}
-  .row:hover{background:var(--card-2)}
+  .panels{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px}
+  .panel{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:24px;box-shadow:var(--shadow-sm)}
+  .panel h3{font-size:15px;font-weight:700;margin-bottom:16px}
+
+  .alloc-bar{display:flex;height:32px;border-radius:10px;overflow:hidden;border:1px solid var(--border);margin-bottom:8px}
+  .alloc-seg{display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:#fff;transition:width .5s var(--ease)}
+  .alloc-seg.eth{background:linear-gradient(135deg,#6366f1,#818cf8)}
+  .alloc-seg.usdc{background:linear-gradient(135deg,#059669,#34d399)}
+  .alloc-target{display:flex;height:8px;border-radius:5px;overflow:hidden;margin-top:6px}
+  .at-seg{transition:width .5s var(--ease)}
+  .at-seg.eth{background:#c7d2fe}.at-seg.usdc{background:#a7f3d0}
+  .alloc-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text-3);margin-top:6px;font-weight:600}
+
+  .drift-bar{height:8px;background:var(--border);border-radius:5px;overflow:hidden;margin:12px 0;position:relative}
+  .drift-fill{height:100%;border-radius:5px;transition:width .5s var(--ease);background:linear-gradient(90deg,var(--acc),var(--warn),var(--err))}
+  .drift-thresh{position:absolute;top:-2px;width:2px;height:12px;background:var(--err);border-radius:1px}
+  .drift-val{font-size:28px;font-weight:800;font-family:'JetBrains Mono',monospace}
+  .drift-val.ok{color:var(--acc)}.drift-val.warn{color:var(--warn)}.drift-val.danger{color:var(--err)}
+
+  .t-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)}
+  .t-row:last-child{border:none}
+  .t-label{font-size:13px;font-weight:600;color:var(--text-2)}
+  .t-value{font-size:16px;font-weight:700;font-family:'JetBrains Mono',monospace}
+
+  .a-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+  .a-row:last-child{border:none}
+  .a-icon{font-size:16px;flex-shrink:0;margin-top:1px}
+  .a-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-3);margin-bottom:2px}
+  .a-value{font-size:13px;color:var(--text);word-break:break-word}
+
+  .tx-item{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--border);border-radius:var(--r-sm);transition:border-color .15s,background .15s}
+  .tx-item:hover{border-color:var(--blue);background:var(--card-2)}
+  .tx-icon{width:36px;height:36px;border-radius:10px;background:var(--acc-s);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+  .tx-info{flex:1;min-width:0}
+  .tx-hash{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tx-msg{font-size:13px;font-weight:600}
+  .tx-link{display:inline-flex;align-items:center;gap:4px;color:var(--blue);text-decoration:none;font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;background:var(--blue-s);transition:background .15s;flex-shrink:0}
+  .tx-link:hover{background:#bfdbfe}
+
+  .feed-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow-sm)}
+  .feed-row{display:grid;grid-template-columns:auto 130px 1fr auto;gap:14px;padding:12px 24px;border-bottom:1px solid var(--border);align-items:center;transition:background .15s;animation:slideIn .3s var(--ease)}
+  .feed-row:last-child{border:none}.feed-row:hover{background:var(--card-2)}
   @keyframes slideIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+  .fi{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+  .fi-execute{background:var(--acc-s)}.fi-decision{background:var(--purple-s)}.fi-read{background:#f0f2f5}.fi-system{background:#f0f2f5}.fi-retry{background:var(--warn-s)}
+  .feed-kind{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--text-2);font-family:'JetBrains Mono',monospace}
+  .feed-msg{font-size:12px;word-break:break-word}
+  .feed-msg.err{color:var(--err)}.feed-msg.ok{color:var(--acc)}
+  .feed-ts{font-size:10px;color:var(--text-3);font-family:'JetBrains Mono',monospace}
+  .empty{padding:40px;text-align:center;color:var(--text-3)}
 
-  .row-icon{
-    width:36px;height:36px;border-radius:10px;
-    display:flex;align-items:center;justify-content:center;
-    font-size:16px;flex-shrink:0;
-  }
-  .icon-execute{background:var(--acc-soft)}
-  .icon-execute_status{background:var(--acc-soft)}
-  .icon-decision{background:var(--lantern-soft)}
-  .icon-read{background:#f0f2f5}
-  .icon-system{background:#f0f2f5}
-  .icon-retry{background:var(--warn-soft)}
-  .icon-x402_payment{background:var(--blue-soft)}
+  footer{text-align:center;padding:24px;color:var(--text-3);font-size:13px;border-top:1px solid var(--border)}
+  .fb-list{display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap}
+  .fb{font-size:11px;font-weight:600;padding:4px 12px;border-radius:999px}
+  .fb-keeper{background:var(--purple);color:#fff}.fb-sepolia{background:var(--blue);color:#fff}.fb-x402{background:var(--acc);color:#fff}
 
-  .kind{
-    font-size:11px;font-weight:700;text-transform:uppercase;
-    letter-spacing:.05em;color:var(--text-2);
-    font-family:'JetBrains Mono',monospace;
-  }
-  .msg{font-size:13px;color:var(--text);word-break:break-word;line-height:1.5}
-  .msg.error{color:var(--err)}
-  .msg.success{color:var(--acc)}
-
-  .row-meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-  .ts{font-size:11px;color:var(--text-3);font-family:'JetBrains Mono',monospace}
-  .pill{
-    font-size:10px;font-weight:600;
-    border:1px solid var(--border-strong);border-radius:6px;
-    padding:2px 8px;color:var(--text-2);
-    font-family:'JetBrains Mono',monospace;
-  }
-  .pill.error{background:var(--err-soft);color:var(--err);border-color:#fca5a5}
-  .pill.success{background:var(--acc-soft);color:var(--acc);border-color:#6ee7b7}
-
-  a.tx{
-    display:inline-flex;align-items:center;gap:4px;
-    color:var(--blue);text-decoration:none;font-weight:600;
-    font-size:12px;margin-top:3px;
-    padding:2px 8px;border-radius:6px;background:var(--blue-soft);
-    transition:background .15s var(--ease);
-  }
-  a.tx:hover{background:#bfdbfe;text-decoration:none}
-
-  .empty{
-    padding:60px 32px;text-align:center;color:var(--text-3);
-  }
-  .empty-icon{font-size:48px;margin-bottom:12px}
-  .empty p{font-size:15px;font-weight:500}
-
-  /* ── Footer ── */
-  footer{
-    text-align:center;padding:24px;
-    color:var(--text-3);font-size:13px;
-    border-top:1px solid var(--border);margin-top:auto;
-  }
-  .footer-badges{display:flex;gap:8px;justify-content:center;margin-top:10px}
-  .footer-badge{
-    font-size:11px;font-weight:600;
-    padding:4px 12px;border-radius:999px;
-  }
-  .fb-keeper{background:var(--lantern);color:white}
-  .fb-sepolia{background:var(--blue);color:white}
-  .fb-x402{background:var(--acc);color:white}
-
-  @media(max-width:700px){
-    header{padding:14px 18px}
-    .stats-bar{padding:16px;grid-template-columns:1fr 1fr}
-    main{padding:0 16px 24px}
-    .row{grid-template-columns:auto 1fr;padding:12px 16px;gap:10px}
-    .kind{display:none}
-    .row-meta{display:none}
-  }
+  @media(max-width:900px){.p-grid{grid-template-columns:1fr 1fr}.panels{grid-template-columns:1fr}main{padding:16px}}
 </style></head>
 <body>
 
 <header>
-  <div class="brand">
-    <div class="logo">🛡️</div>
-    <div>
-      <h1>KeeperPilot</h1>
-      <div class="sub">Autonomous Onchain Agent · Powered by KeeperHub</div>
-    </div>
-  </div>
-  <div class="header-right">
-    <div class="status-badge">
-      <span class="live-dot"></span>
-      <span id="net-label">Sepolia · Live</span>
-    </div>
-  </div>
+  <div class="brand"><div class="logo">🛡️</div><div><h1>KeeperPilot</h1><div class="sub">Autonomous Onchain Rebalancing Agent</div></div></div>
+  <div class="header-right"><span class="net-pill" id="net-pill">Sepolia</span><div class="badge-live"><span class="live-dot"></span> Agent Active</div></div>
 </header>
 
-<div class="stats-bar">
-  <div class="stat-card">
-    <div class="stat-icon">⚡</div>
-    <div class="stat-label">Total Events</div>
-    <div class="stat-value purple" id="stat-events">0</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon">🔥</div>
-    <div class="stat-label">Executions</div>
-    <div class="stat-value green" id="stat-exec">0</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon">🧠</div>
-    <div class="stat-label">Decisions</div>
-    <div class="stat-value blue" id="stat-decisions">0</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-icon">🔗</div>
-    <div class="stat-label">Transactions</div>
-    <div class="stat-value orange" id="stat-txs">0</div>
-  </div>
-</div>
-
 <main>
-  <div class="feed-header">
-    <h2>📋 Live Audit Trail</h2>
-    <span class="feed-count" id="feed-count">Real-time agent activity</span>
+  <div class="section-title">💰 Portfolio Overview</div>
+  <div class="p-grid">
+    <div class="p-card"><div class="icon">⚡</div><div class="label">ETH Balance</div><div class="value v-purple" id="p-eth">—</div><div class="sub" id="p-eth-usd">—</div></div>
+    <div class="p-card"><div class="icon">💵</div><div class="label">USDC Balance</div><div class="value v-green" id="p-usdc">—</div><div class="sub">Stablecoin</div></div>
+    <div class="p-card"><div class="icon">📊</div><div class="label">Total Value</div><div class="value v-blue" id="p-total">—</div><div class="sub" id="p-price">ETH @ $—</div></div>
+    <div class="p-card"><div class="icon">🛰️</div><div class="label">ETH Price</div><div class="value v-orange" id="p-ethprice">—</div><div class="sub">Oracle / Fallback</div></div>
   </div>
-  <div class="feed-card">
-    <div id="feed">
-      <div class="empty">
-        <div class="empty-icon">⏳</div>
-        <p>Waiting for agent activity…</p>
+
+  <div class="wallet-card">
+    <div class="label">🔗 KeeperHub Wallet</div>
+    <div class="addr mono" id="wallet-addr">Loading…</div>
+    <div class="net" id="wallet-net">Sepolia Testnet (11155111)</div>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <h3>🎯 Allocation vs Target</h3>
+      <div class="alloc-bar" id="alloc-bar">
+        <div class="alloc-seg eth" id="alloc-eth" style="width:0%">ETH 0%</div>
+        <div class="alloc-seg usdc" id="alloc-usdc" style="width:0%">USDC 0%</div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);font-weight:600;margin-top:8px">TARGET ALLOCATION</div>
+      <div class="alloc-target" id="alloc-target">
+        <div class="at-seg eth" id="target-eth" style="width:50%"></div>
+        <div class="at-seg usdc" id="target-usdc" style="width:50%"></div>
+      </div>
+      <div class="alloc-labels"><span>ETH <span id="target-eth-label">50%</span></span><span>USDC <span id="target-usdc-label">50%</span></span></div>
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span style="font-size:13px;font-weight:600;color:var(--text-2)">Drift from Target</span>
+          <span class="drift-val ok" id="drift-val">—</span>
+        </div>
+        <div class="drift-bar"><div class="drift-fill" id="drift-fill" style="width:0%"></div><div class="drift-thresh" id="drift-thresh" style="left:5%"></div></div>
+        <div style="font-size:11px;color:var(--text-3);display:flex;justify-content:space-between"><span>0%</span><span id="drift-thresh-label">Threshold: 5%</span><span>50%</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>🧠 Agent Status</h3>
+      <div class="a-row"><div class="a-icon">🟢</div><div style="flex:1"><div class="a-label">Status</div><div class="a-value">Active — monitoring portfolio</div></div></div>
+      <div class="a-row"><div class="a-icon">🧠</div><div style="flex:1"><div class="a-label">Last Decision</div><div class="a-value" id="agent-decision">—</div></div></div>
+      <div class="a-row"><div class="a-icon">⚡</div><div style="flex:1"><div class="a-label">Last Execution</div><div class="a-value mono" id="agent-exec">—</div></div></div>
+      <div class="a-row"><div class="a-icon">🕐</div><div style="flex:1"><div class="a-label">Started</div><div class="a-value mono" id="agent-started">—</div></div></div>
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <div class="section-title" style="margin-bottom:8px">⚙️ Strategy Config</div>
+        <div class="t-row"><span class="t-label">Target ETH</span><span class="t-value v-purple" id="s-eth">50%</span></div>
+        <div class="t-row"><span class="t-label">Target USDC</span><span class="t-value v-green" id="s-usdc">50%</span></div>
+        <div class="t-row"><span class="t-label">Drift Threshold</span><span class="t-value v-orange" id="s-threshold">5%</span></div>
       </div>
     </div>
   </div>
+
+  <div class="section-title" style="margin-top:28px">🔗 Onchain Transactions</div>
+  <div class="panel" style="margin-bottom:24px"><div id="tx-list"><div class="empty">No transactions yet</div></div></div>
+
+  <div class="section-title">📋 Live Audit Trail</div>
+  <div class="feed-card" id="feed-card"><div class="empty">Loading audit trail…</div></div>
 </main>
 
 <footer>
   <p>Built for KeeperHub Agents Onchain Hackathon · DoraHacks</p>
-  <div class="footer-badges">
-    <span class="footer-badge fb-keeper">KeeperHub SDK</span>
-    <span class="footer-badge fb-sepolia">Sepolia Testnet</span>
-    <span class="footer-badge fb-x402">x402 Protocol</span>
-  </div>
+  <div class="fb-list"><span class="fb fb-keeper">KeeperHub SDK</span><span class="fb fb-sepolia">Sepolia Testnet</span><span class="fb fb-x402">x402 Protocol</span><span class="fb fb-x402">Gas-Sponsored</span></div>
 </footer>
 
 <script>
-  const feed=document.getElementById('feed');
-  const countEl=document.getElementById('feed-count');
-  const statEvents=document.getElementById('stat-events');
-  const statExec=document.getElementById('stat-exec');
-  const statDecisions=document.getElementById('stat-decisions');
-  const statTxs=document.getElementById('stat-txs');
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function shortHash(h){return h?h.slice(0,10)+'…'+h.slice(-6):'—'}
+function tAgo(iso){if(!iso)return'—';return new Date(iso).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
 
-  let n=0,execCount=0,decisionCount=0,txCount=0;
+async function loadPortfolio(){
+  try{
+    const r=await fetch('/api/portfolio');const d=await r.json();
+    document.getElementById('p-eth').textContent=parseFloat(d.eth).toFixed(4)+' ETH';
+    document.getElementById('p-eth-usd').textContent='$'+parseFloat(d.ethValue).toFixed(2);
+    document.getElementById('p-usdc').textContent=parseFloat(d.usdc).toFixed(2)+' USDC';
+    document.getElementById('p-total').textContent='$'+parseFloat(d.total).toFixed(2);
+    document.getElementById('p-price').textContent='ETH @ $'+d.ethPrice;
+    document.getElementById('p-ethprice').textContent='$'+d.ethPrice;
+    document.getElementById('wallet-addr').textContent=d.wallet;
+    document.getElementById('wallet-net').textContent='Sepolia Testnet ('+d.network+')';
+    const eP=parseFloat(d.allocation.eth),uP=parseFloat(d.allocation.usdc);
+    document.getElementById('alloc-eth').style.width=Math.max(eP,eP>0?8:0)+'%';
+    document.getElementById('alloc-usdc').style.width=Math.max(uP,uP>0?8:0)+'%';
+    document.getElementById('alloc-eth').textContent='ETH '+eP.toFixed(1)+'%';
+    document.getElementById('alloc-usdc').textContent='USDC '+uP.toFixed(1)+'%';
+    document.getElementById('target-eth').style.width=d.targets.eth+'%';
+    document.getElementById('target-usdc').style.width=d.targets.usdc+'%';
+    document.getElementById('target-eth-label').textContent=d.targets.eth+'%';
+    document.getElementById('target-usdc-label').textContent=d.targets.usdc+'%';
+    const dr=parseFloat(d.drift),th=parseFloat(d.driftThreshold);
+    const dv=document.getElementById('drift-val');
+    dv.textContent=dr.toFixed(1)+'%';
+    dv.className='drift-val '+(dr>th?'danger':dr>th/2?'warn':'ok');
+    document.getElementById('drift-fill').style.width=Math.min(dr*2,100)+'%';
+    document.getElementById('drift-thresh').style.left=(th*2)+'%';
+    document.getElementById('drift-thresh-label').textContent='Threshold: '+th+'%';
+    document.getElementById('s-eth').textContent=d.targets.eth+'%';
+    document.getElementById('s-usdc').textContent=d.targets.usdc+'%';
+    document.getElementById('s-threshold').textContent=th+'%';
+  }catch(e){console.error('portfolio',e)}
+}
 
-  const kindIcons={
-    execute:'⚡',execute_status:'✅',decision:'🧠',read:'👁️',
-    system:'⚙️',retry:'🔄',x402_payment:'💰'
-  };
+async function loadAgent(){
+  try{
+    const r=await fetch('/api/agent');const d=await r.json();
+    document.getElementById('agent-decision').textContent=d.lastDecision||'Waiting for first tick…';
+    document.getElementById('agent-exec').textContent=d.lastExecution||'No executions yet';
+    document.getElementById('agent-started').textContent=d.startedAt?new Date(d.startedAt).toLocaleString():'—';
+  }catch(e){console.error('agent',e)}
+}
 
-  function add(e){
-    if(n===0)feed.innerHTML='';
-    n++;
-    countEl.textContent=n+' events logged';
-    statEvents.textContent=n;
+async function loadTx(){
+  try{
+    const r=await fetch('/api/transactions');const d=await r.json();
+    const list=document.getElementById('tx-list');
+    if(!d.transactions||d.transactions.length===0){list.innerHTML='<div class="empty">No onchain transactions yet</div>';return}
+    list.innerHTML=d.transactions.map(t=>{
+      const gas=t.gasUsedWei?(parseInt(t.gasUsedWei)/1e9).toFixed(2)+' gwei':'';
+      return '<div class="tx-item">'+
+        '<div class="tx-icon">'+(t.status==='failed'?'❌':'✅')+'</div>'+
+        '<div class="tx-info"><div class="tx-msg">'+esc(t.message)+'</div>'+
+        '<div class="tx-hash mono">'+esc(shortHash(t.hash))+(gas?' · '+gas:'')+' · '+tAgo(t.ts)+'</div></div>'+
+        '<a class="tx-link" target="_blank" href="'+esc(t.link)+'">View ↗</a></div>';
+    }).join('');
+  }catch(e){console.error('tx',e)}
+}
 
-    const icon=kindIcons[e.kind]||'•';
-    const row=document.createElement('div');row.className='row';
-    const ts=new Date(e.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+const kIcons={execute:'⚡',execute_status:'✅',decision:'🧠',read:'👁️',system:'⚙️',retry:'🔄',x402_payment:'💰'};
+let feedN=0;
+function addFeed(e){
+  const card=document.getElementById('feed-card');
+  if(feedN===0)card.innerHTML='';
+  feedN++;
+  const icon=kIcons[e.kind]||'•';
+  const row=document.createElement('div');row.className='feed-row';
+  const isErr=e.level==='error'||(e.data&&e.data.status==='failed');
+  const isOk=e.data&&e.data.status==='success';
+  let txL='';
+  if(e.transactionLink)txL=' <a href="'+esc(e.transactionLink)+'" target="_blank" style="color:var(--blue);font-weight:600">tx↗</a>';
+  row.innerHTML='<div class="fi fi-'+e.kind+'">'+icon+'</div>'+
+    '<div class="feed-kind">'+e.kind.replace(/_/g,' ')+'</div>'+
+    '<div class="feed-msg '+(isErr?'err':isOk?'ok':'')+'">'+esc(e.message)+txL+'</div>'+
+    '<div class="feed-ts">'+tAgo(e.ts)+'</div>';
+  card.prepend(row);
+  while(card.children.length>100)card.removeChild(card.lastChild);
+  if(e.kind==='read'||e.kind==='execute'||e.kind==='decision'||e.kind==='execute_status'){loadPortfolio();loadAgent();loadTx();}
+}
 
-    // track stats
-    if(e.kind==='execute'||e.kind==='execute_status'){execCount++;statExec.textContent=execCount}
-    if(e.kind==='decision'){decisionCount++;statDecisions.textContent=decisionCount}
-    if(e.transactionHash){txCount++;statTxs.textContent=txCount}
-
-    const isError=e.level==='error'||(e.data&&e.data.status==='failed');
-    const isSuccess=e.data&&e.data.status==='success';
-
-    const iconClass='icon-'+e.kind;
-    const msgClass=isError?'error':isSuccess?'success':'';
-    const pillClass=isError?'error':isSuccess?'success':'';
-
-    let meta='<div class="row-meta"><div class="ts">'+ts+'</div>';
-    if(e.network)meta+='<span class="pill '+pillClass+'">'+e.network+'</span>';
-    meta+='</div>';
-
-    let tx='';
-    if(e.transactionLink){
-      tx=' <a class="tx" target="_blank" href="'+e.transactionLink+'">view tx ↗</a>';
-    }
-
-    row.innerHTML=
-      '<div class="row-icon '+iconClass+'">'+icon+'</div>'+
-      '<div class="kind">'+e.kind.replace(/_/g,' ')+'</div>'+
-      '<div class="msg '+msgClass+'">'+escapeHtml(e.message)+tx+'</div>'+
-      meta;
-    feed.prepend(row);
-
-    // keep max 200 rows
-    while(feed.children.length>200)feed.removeChild(feed.lastChild);
-  }
-  function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
-  // seed recent
-  fetch('/api/audit').then(r=>r.json()).then(arr=>arr.forEach(add)).catch(()=>{});
-  // live
+async function init(){
+  loadPortfolio();loadAgent();loadTx();
+  try{const r=await fetch('/api/audit');const a=await r.json();a.forEach(addFeed);}catch(e){}
   const es=new EventSource('/api/audit/stream');
-  es.onmessage=ev=>{try{add(JSON.parse(ev.data))}catch(e){}};
+  es.onmessage=ev=>{try{addFeed(JSON.parse(ev.data))}catch(e){}};
+}
+init();
 </script>
 </body></html>`;
