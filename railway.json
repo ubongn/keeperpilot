@@ -1,0 +1,15 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm ci && npm run build",
+    "watchPatterns": ["src/**", "scripts/**", "package.json", "package-lock.json", "tsconfig.json"]
+  },
+  "deploy": {
+    "startCommand": "node dist/src/index.js",
+    "healthcheckPath": "/api/audit",
+    "healthcheckTimeout": 90,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 4
+  }
+}

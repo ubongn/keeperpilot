@@ -9,12 +9,13 @@
 // real kh_ key and flip it off. See .env.example.
 
 import 'dotenv/config';
+import express from 'express';
 import { KeeperHubClient } from './keeperhub/client.js';
 import { resolveNetwork, USDC_BY_CHAIN } from './keeperhub/chains.js';
 import { AuditLog } from './observability/audit.js';
-import { startDashboard } from './observability/dashboard.js';
+import { createDashboard } from './observability/dashboard.js';
 import { Agent } from './agent/loop.js';
-import { startGateway } from './x402/gateway.js';
+import { createGateway } from './x402/gateway.js';
 import pino from 'pino';
 
 function env(key: string, fallback = ''): string {
@@ -42,18 +43,44 @@ async function main() {
     maxRetries: 4,
   });
 
-  // Layer C: dashboard
-  await startDashboard(audit, envInt('DASH_PORT', 3000));
+  // HTTP surfaces. A PaaS (Railway / Render) injects a single public `PORT` and only
+  // proxies traffic to that one port — so when `PORT` is set we mount BOTH the dashboard
+  // and the x402 gateway on the one process (their routes don't collide: dashboard owns
+  // `/` + `/api/audit*`, gateway owns `/health` + `/execute`). Locally / in docker-compose
+  // we keep the classic two-port split (dashboard :3000, gateway :8787).
+  const settlement = (env('X402_SETTLE', 'base-usdc') as 'base-usdc' | 'tempo-usdce');
+  const payTo = (env('X402_RECEIVER', '0x0000000000000000000000000000000000000000') as `0x${string}`);
+  const priceCents = envInt('X402_PRICE_CENTS', 1);
 
-  // Layer B: x402 gateway (only meaningful with a real key, but harmless otherwise)
-  await startGateway({
+  const paasPort = Number(process.env.PORT);
+  const dashPort = envInt('DASH_PORT', 3000);
+  const x402Port = envInt('X402_PORT', 8787);
+
+  const dashboardApp = createDashboard(audit);
+  const gatewayApp = createGateway({
     client,
     audit,
-    port: envInt('X402_PORT', 8787),
-    settlement: (env('X402_SETTLE', 'base-usdc') as 'base-usdc' | 'tempo-usdce'),
-    payTo: (env('X402_RECEIVER', '0x0000000000000000000000000000000000000000') as `0x${string}`),
-    priceCents: envInt('X402_PRICE_CENTS', 1),
+    port: Number.isFinite(paasPort) && paasPort > 0 ? paasPort : x402Port,
+    settlement,
+    payTo,
+    priceCents,
   });
+
+  if (Number.isFinite(paasPort) && paasPort > 0) {
+    const server = express();
+    server.use(gatewayApp); // /health, /execute
+    server.use(dashboardApp); // /, /api/audit, /api/audit/stream
+    server.listen(paasPort, () => {
+      audit.record({ kind: 'system', level: 'info', message: `PaaS server on :${paasPort} (dashboard + x402 combined)` });
+    });
+  } else {
+    dashboardApp.listen(dashPort, () => {
+      audit.record({ kind: 'system', level: 'info', message: `dashboard on http://localhost:${dashPort}` });
+    });
+    gatewayApp.listen(x402Port, () => {
+      audit.record({ kind: 'system', level: 'info', message: `x402 gateway on :${x402Port} (settlement ${settlement}, price ${priceCents}c/call)` });
+    });
+  }
 
   // Layer A: strategy agent
   const agent = new Agent({

@@ -19,4 +19,4 @@ COPY web ./web
 # non-root user
 USER node
 EXPOSE 3000 8787
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/src/index.js"]

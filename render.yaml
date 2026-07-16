@@ -1,0 +1,48 @@
+# Render Blueprint — KeeperPilot
+# One-click deploy: https://render.com/docs/blueprint-specs
+# After pushing this file, connect the repo on Render → New + → Blueprint → all
+# services/env vars below are auto-configured.
+
+services:
+  - type: web
+    name: keeperpilot
+    runtime: node
+    plan: free
+    region: oregon            # free tier
+    branch: main
+    rootDir: .
+    # Build the TypeScript, then start the compiled entrypoint.
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/audit   # dashboard always returns 200 JSON
+    autoDeploy: true
+    envVars:
+      # Render injects PORT automatically; index.ts honours PORT first.
+      - key: KH_API_KEY
+        sync: false             # secret — set in the Render UI once, never committed
+      - key: KH_DRY_RUN
+        value: "false"
+      - key: KH_NETWORK
+        value: sepolia
+      - key: KH_WALLET_ADDRESS
+        value: "0xa2B4C546c78F74E9E81Abc2d6D69F94E9e43A23E"
+      - key: KH_BASE_URL
+        value: https://app.keeperhub.com
+      - key: AGENT_TARGET_ETH
+        value: "50"
+      - key: AGENT_TARGET_USDC
+        value: "50"
+      - key: AGENT_DRIFT_THRESHOLD_PCT
+        value: "5"
+      - key: AGENT_LOOP_MS
+        value: "0"
+      - key: X402_PORT
+        value: "8787"
+      - key: X402_SETTLE
+        value: base-usdc
+      - key: X402_RECEIVER
+        value: "0xa2B4C546c78F74E9E81Abc2d6D69F94E9e43A23E"
+      - key: DASH_PORT
+        value: "3000"
+      - key: LOG_LEVEL
+        value: info
