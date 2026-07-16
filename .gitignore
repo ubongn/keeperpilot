@@ -7,3 +7,6 @@ logs/
 .DS_Store
 coverage/
 .vitest-cache/
+# local deploy helpers (contain secrets)
+kp_*.bat
+login.log
