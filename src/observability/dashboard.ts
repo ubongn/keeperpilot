@@ -9,6 +9,9 @@
 //   • Live audit trail feed (SSE)
 
 import express from 'express';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import type { AuditLog } from './audit.js';
 
 export interface DashboardContext {
@@ -122,6 +125,29 @@ export function createDashboard(ctx: DashboardContext) {
   // ── Dashboard HTML ──
   app.get('/', (_req, res) => {
     res.type('html').send(DASHBOARD_HTML);
+  });
+
+  // ── Architecture diagram ──
+  app.get('/architecture.html', (_req, res) => {
+    try {
+      // Try multiple paths (local dev vs Docker build)
+      const here = dirname(fileURLToPath(import.meta.url));
+      const candidates = [
+        join(process.cwd(), 'public', 'architecture.html'),
+        join(process.cwd(), 'docs', 'architecture.html'),
+        join(here, '..', '..', '..', 'public', 'architecture.html'),
+      ];
+      for (const p of candidates) {
+        try {
+          const html = readFileSync(p, 'utf-8');
+          res.type('html').send(html);
+          return;
+        } catch { /* try next */ }
+      }
+      res.status(404).send('Architecture diagram not found');
+    } catch (e) {
+      res.status(500).send('Error loading architecture diagram');
+    }
   });
 
   return app;

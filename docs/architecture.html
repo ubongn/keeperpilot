@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c3aed'/%3E%3Ctext x='16' y='23' font-size='18' text-anchor='middle'%3E%F0%9F%9B%A1%EF%B8%8F%3C/text%3E%3C/svg%3E"/>
+<title>KeeperPilot — Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  :root{
+    --bg:#f5f6f9;--card:#fff;--card-2:#fbfcfe;
+    --border:#e8eaf0;--border-s:#d6dae3;
+    --text:#14171f;--text-2:#565f70;--text-3:#8a93a3;
+    --purple:#7c3aed;--purple-s:#f3eeff;
+    --green:#059669;--green-s:#d1fae5;
+    --blue:#2563eb;--blue-s:#dbeafe;
+    --orange:#d97706;--orange-s:#fef3c7;
+    --red:#dc2626;--red-s:#fee2e2;
+    --shadow-sm:0 1px 2px rgba(20,24,35,.04),0 2px 6px rgba(20,24,35,.05);
+    --shadow-md:0 4px 14px rgba(20,24,35,.07),0 2px 4px rgba(20,24,35,.04);
+    --r:16px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',sans-serif;background:radial-gradient(1200px 600px at 80% -10%,#eef2ff 0%,rgba(238,242,255,0) 55%),radial-gradient(900px 500px at -10% 10%,#f0fdf4 0%,rgba(240,253,244,0) 50%),#f5f6f9;color:var(--text);-webkit-font-smoothing:antialiased;line-height:1.6}
+  .mono{font-family:'JetBrains Mono',monospace}
+
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 32px 80px}
+
+  .head{text-align:center;margin-bottom:48px}
+  .head .logo{font-size:48px;margin-bottom:12px}
+  .head h1{font-size:32px;font-weight:900;letter-spacing:-.03em;margin-bottom:8px}
+  .head .sub{font-size:16px;color:var(--text-2);max-width:640px;margin:0 auto}
+
+  .legend{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:20px 0 0}
+  .lg{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text-2)}
+  .lg .dot{width:12px;height:12px;border-radius:4px}
+
+  .layer{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:28px;margin-bottom:20px;box-shadow:var(--shadow-sm);position:relative;overflow:hidden}
+  .layer::before{content:'';position:absolute;top:0;left:0;width:5px;height:100%}
+  .layer.l-a::before{background:linear-gradient(180deg,var(--purple),#a78bfa)}
+  .layer.l-b::before{background:linear-gradient(180deg,var(--green),#34d399)}
+  .layer.l-c::before{background:linear-gradient(180deg,var(--blue),#60a5fa)}
+
+  .layer-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border-radius:999px;margin-bottom:12px}
+  .layer-tag.t-a{background:var(--purple-s);color:var(--purple)}
+  .layer-tag.t-b{background:var(--green-s);color:var(--green)}
+  .layer-tag.t-c{background:var(--blue-s);color:var(--blue)}
+  .layer h2{font-size:22px;font-weight:800;margin-bottom:6px}
+  .layer .desc{font-size:14px;color:var(--text-2);margin-bottom:20px}
+
+  .flow{display:flex;align-items:stretch;gap:12px;flex-wrap:wrap}
+  .node{flex:1;min-width:140px;background:var(--card-2);border:1px solid var(--border);border-radius:12px;padding:16px;text-align:center;transition:transform .2s,box-shadow .2s}
+  .node:hover{transform:translateY(-3px);box-shadow:var(--shadow-md)}
+  .node .ni{font-size:28px;margin-bottom:8px}
+  .node .nt{font-size:13px;font-weight:700;margin-bottom:2px}
+  .node .nd{font-size:11px;color:var(--text-3)}
+
+  .arrow{text-align:center;font-size:24px;color:var(--text-3);margin:8px 0;padding:0 8px;align-self:center}
+
+  .codes{background:#1e1b4b;border-radius:12px;padding:16px 20px;margin-top:16px}
+  .codes .ch{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#a5b4fc;margin-bottom:8px}
+  .codes code{font-family:'JetBrains Mono',monospace;font-size:12px;color:#c7d2fe;display:block;line-height:1.8}
+
+  .sdk{background:linear-gradient(135deg,#1e1b4b,#312e81);color:#fff;border-radius:var(--r);padding:28px;margin-bottom:20px;box-shadow:var(--shadow-md)}
+  .sdk .tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;padding:4px 12px;border-radius:999px;background:rgba(255,255,255,.15);color:#a5b4fc;margin-bottom:12px}
+  .sdk h2{font-size:22px;font-weight:800;margin-bottom:6px}
+  .sdk .desc{font-size:14px;color:#c7d2fe;margin-bottom:20px}
+  .feat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .feat{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:14px}
+  .feat .fi{font-size:20px;margin-bottom:6px}
+  .feat .ft{font-size:13px;font-weight:700}
+  .feat .fd{font-size:11px;color:#a5b4fc;margin-top:2px}
+
+  .stack{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:8px}
+  .st{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center}
+  .st .si{font-size:22px;margin-bottom:6px}
+  .st .st-t{font-size:12px;font-weight:700}
+  .st .st-d{font-size:10px;color:var(--text-3)}
+
+  .tx-proof{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:28px;margin-top:20px;box-shadow:var(--shadow-sm)}
+  .tx-proof h2{font-size:20px;font-weight:800;margin-bottom:16px}
+  .tx-item{display:flex;align-items:center;gap:14px;padding:14px;border:1px solid var(--border);border-radius:10px;margin-bottom:10px}
+  .tx-item .txi{font-size:20px}
+  .tx-item .txh{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--text-2)}
+  .tx-item a{margin-left:auto;color:var(--blue);text-decoration:none;font-size:12px;font-weight:700;padding:6px 12px;border-radius:8px;background:var(--blue-s)}
+
+  .conn{text-align:center;margin:0;padding:8px 0;color:var(--text-3);font-size:13px;font-weight:600}
+  .conn .dline{display:inline-block;width:2px;height:24px;background:var(--border-s);margin:0 4px}
+
+  @media(max-width:700px){.flow{flex-direction:column}.arrow{transform:rotate(90deg)}.feat-grid,.stack{grid-template-columns:1fr 1fr}}
+</style></head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="logo">🛡️</div>
+    <h1>KeeperPilot Architecture</h1>
+    <p class="sub">An autonomous onchain portfolio rebalancing agent that executes real transactions through KeeperHub — bundled with an x402 pay-per-execution gateway and a live audit-trail dashboard.</p>
+    <div class="legend">
+      <div class="lg"><span class="dot" style="background:var(--purple)"></span> Layer A · Strategy</div>
+      <div class="lg"><span class="dot" style="background:var(--green)"></span> Layer B · x402 Gateway</div>
+      <div class="lg"><span class="dot" style="background:var(--blue)"></span> Layer C · Audit Dashboard</div>
+      <div class="lg"><span class="dot" style="background:#1e1b4b"></span> KeeperHub SDK</div>
+    </div>
+  </div>
+
+  <!-- KeeperHub SDK (the core) -->
+  <div class="sdk">
+    <div class="tag">⚙️ Core SDK</div>
+    <h2>KeeperHub Client</h2>
+    <p class="desc">Typed TypeScript SDK wrapping the KeeperHub Direct Execution API. Every layer below depends on this.</p>
+    <div class="feat-grid">
+      <div class="feat"><div class="fi">🔐</div><div class="ft">Idempotency Keys</div><div class="fd">Safe retries, no double-execute</div></div>
+      <div class="feat"><div class="fi">🧪</div><div class="ft">Dry-Run Simulate</div><div class="fd">Preview before broadcast</div></div>
+      <div class="feat"><div class="fi">🔄</div><div class="ft">Retry + Backoff</div><div class="fd">4 retries, exponential backoff</div></div>
+      <div class="feat"><div class="fi">⛽</div><div class="ft">Gas-Sponsored</div><div class="fd">KeeperHub pays the gas</div></div>
+      <div class="feat"><div class="fi">🛡️</div><div class="ft">MEV-Protected</div><div class="fd">No front-running</div></div>
+      <div class="feat"><div class="fi">📊</div><div class="ft">Poll-Interval</div><div class="fd">Honors X-Poll-Interval-Hint</div></div>
+    </div>
+    <div class="codes">
+      <div class="ch">API Surface</div>
+      <code>client.transferAndConfirm({ to, amount, token }) → { transactionHash, transactionLink, status }</code>
+      <code>client.readBalance(address) → { eth, usdc, ethPriceUsd }</code>
+      <code>client.waitForCompletion(id) → { status: "success" | "failed" }</code>
+    </div>
+  </div>
+
+  <div class="conn"><span class="dline"></span> powers <span class="dline"></span></div>
+
+  <!-- Layer A -->
+  <div class="layer l-a">
+    <div class="layer-tag t-a">🧠 Layer A</div>
+    <h2>Strategy Engine</h2>
+    <p class="desc">Deterministic rebalancing loop — reads portfolio state, calculates drift from target allocation, executes corrective transactions. Rule-based so the demo never depends on an LLM not hallucinating.</p>
+    <div class="flow">
+      <div class="node"><div class="ni">👁️</div><div class="nt">READ</div><div class="nd">Wallet balances + ETH price via KeeperHub read API</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ni">🧮</div><div class="nt">DECIDE</div><div class="nd">Drift calc vs target bands. If drift &gt; threshold → rebalance</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ni">⚡</div><div class="nt">EXECUTE</div><div class="nd">Transfer via Direct Execution API, gas-sponsored</div></div>
+    </div>
+  </div>
+
+  <!-- Layer B -->
+  <div class="layer l-b">
+    <div class="layer-tag t-b">💰 Layer B</div>
+    <h2>x402 Pay-Per-Execution Gateway</h2>
+    <p class="desc">HTTP service where external clients request an onchain execution ("swap 0.01 ETH→USDC") and pay per-call via the x402 protocol. Unpaid requests receive a standard HTTP 402 payment challenge.</p>
+    <div class="flow">
+      <div class="node"><div class="ni">🌐</div><div class="nt">Client Request</div><div class="nd">POST /execute with params</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ni">402</div><div class="nt">Payment Challenge</div><div class="nd">x402 v2 challenge returned</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ni">✅</div><div class="nt">Verify + Settle</div><div class="nd">USDC payment verified, tx executed</div></div>
+    </div>
+  </div>
+
+  <!-- Layer C -->
+  <div class="layer l-c">
+    <div class="layer-tag t-c">📊 Layer C</div>
+    <h2>Audit-Trail Dashboard</h2>
+    <p class="desc">Live web UI serving portfolio overview, allocation visualization, transaction history with real explorer links, agent status, and a real-time SSE audit feed. Every action across all layers is logged.</p>
+    <div class="flow">
+      <div class="node"><div class="ni">💰</div><div class="nt">Portfolio</div><div class="nd">ETH / USDC balances + total value</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ni">🎯</div><div class="nt">Allocation</div><div class="nd">Current vs target split + drift meter</div></div>
+      <div class="arrow">→</div>
+      <div class="node"><div class="ni">🔗</div><div class="nt">Transactions</div><div class="nd">Real tx hashes + Sepolia explorer links</div></div>
+    </div>
+  </div>
+
+  <!-- Tech Stack -->
+  <div class="head" style="margin-top:48px">
+    <h1 style="font-size:24px">Tech Stack</h1>
+  </div>
+  <div class="stack">
+    <div class="st"><div class="si">📜</div><div class="st-t">TypeScript</div><div class="st-d">End-to-end types</div></div>
+    <div class="st"><div class="si">🟩</div><div class="st-t">Node + Express</div><div class="st-d">Server + SSE</div></div>
+    <div class="st"><div class="si">⛓️</div><div class="st-t">Ethers / Viem</div><div class="st-d">Onchain reads</div></div>
+    <div class="st"><div class="si">🐳</div><div class="st-t">Docker + Render</div><div class="st-d">Cloud deploy</div></div>
+    <div class="st"><div class="si">🧪</div><div class="st-t">Vitest</div><div class="st-d">27 tests passing</div></div>
+    <div class="st"><div class="si">💳</div><div class="st-t">x402 Protocol</div><div class="st-d">USDC micropayments</div></div>
+    <div class="st"><div class="si">📡</div><div class="st-t">SSE</div><div class="st-d">Real-time updates</div></div>
+    <div class="st"><div class="si">🛡️</div><div class="st-t">KeeperHub</div><div class="st-d">Gas-sponsored execution</div></div>
+  </div>
+
+  <!-- Tx Proof -->
+  <div class="tx-proof">
+    <h2>🔗 Real Onchain Transactions (Sepolia)</h2>
+    <div class="tx-item">
+      <div class="txi">✅</div>
+      <div><div style="font-weight:700;font-size:13px">0.001 ETH Transfer</div><div class="txh">0xe94f26dfc008f3b8f2e24db33e6a8deab32274b3878bf8dac9a8de005ca1c771</div></div>
+      <a href="https://sepolia.etherscan.io/tx/0xe94f26dfc008f3b8f2e24db33e6a8deab32274b3878bf8dac9a8de005ca1c771" target="_blank">Etherscan ↗</a>
+    </div>
+    <div class="tx-item">
+      <div class="txi">✅</div>
+      <div><div style="font-weight:700;font-size:13px">0.001 ETH Transfer</div><div class="txh">0xd4495c6da13b56fe98dc38cb6d41debba7cf229582295213732841294f4a164d</div></div>
+      <a href="https://sepolia.etherscan.io/tx/0xd4495c6da13b56fe98dc38cb6d41debba7cf229582295213732841294f4a164d" target="_blank">Etherscan ↗</a>
+    </div>
+  </div>
+
+</div>
+</body></html>
