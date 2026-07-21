@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KeeperPilot — Pitch Deck</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0a0a0a;
+    color: #fafafa;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  .slide {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 100px;
+    opacity: 0;
+    transform: translateY(30px) scale(0.98);
+    transition: opacity 0.8s ease, transform 0.8s ease;
+    pointer-events: none;
+  }
+
+  .slide.active {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+  }
+
+  /* ── Slide 1: Title ─────────────────────────── */
+  .slide-1 {
+    background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 50%, #16213e 100%);
+    text-align: center;
+    align-items: center;
+  }
+  .slide-1 .logo {
+    font-size: 80px;
+    margin-bottom: 20px;
+    animation: float 3s ease-in-out infinite;
+  }
+  .slide-1 h1 {
+    font-size: 72px;
+    font-weight: 800;
+    letter-spacing: -2px;
+    background: linear-gradient(135deg, #6ee7b7, #3b82f6, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 16px;
+  }
+  .slide-1 .tagline {
+    font-size: 24px;
+    color: #94a3b8;
+    font-weight: 400;
+    margin-bottom: 40px;
+  }
+  .slide-1 .badges {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .slide-1 .badge {
+    background: rgba(110, 231, 183, 0.1);
+    border: 1px solid rgba(110, 231, 183, 0.3);
+    border-radius: 24px;
+    padding: 8px 20px;
+    font-size: 14px;
+    color: #6ee7b7;
+  }
+
+  /* ── Slide 2: Problem ───────────────────────── */
+  .slide-2 {
+    background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+  }
+  .slide-2 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 48px;
+    color: #f87171;
+  }
+  .problem-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 32px;
+  }
+  .problem-card {
+    background: rgba(248, 113, 113, 0.05);
+    border: 1px solid rgba(248, 113, 113, 0.15);
+    border-radius: 16px;
+    padding: 32px;
+  }
+  .problem-card .icon { font-size: 36px; margin-bottom: 12px; }
+  .problem-card h3 { font-size: 20px; font-weight: 600; margin-bottom: 8px; color: #fca5a5; }
+  .problem-card p { font-size: 16px; color: #94a3b8; line-height: 1.6; }
+
+  /* ── Slide 3: Solution ──────────────────────── */
+  .slide-3 {
+    background: linear-gradient(135deg, #0a0a0a, #0f172a);
+  }
+  .slide-3 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #6ee7b7, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .slide-3 .subtitle {
+    font-size: 20px;
+    color: #94a3b8;
+    margin-bottom: 48px;
+  }
+  .solution-flow {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .flow-step {
+    background: rgba(110, 231, 183, 0.05);
+    border: 1px solid rgba(110, 231, 183, 0.2);
+    border-radius: 16px;
+    padding: 24px 32px;
+    text-align: center;
+    min-width: 180px;
+  }
+  .flow-step .icon { font-size: 32px; margin-bottom: 8px; }
+  .flow-step .label { font-size: 16px; font-weight: 600; color: #e2e8f0; }
+  .flow-step .desc { font-size: 13px; color: #64748b; margin-top: 4px; }
+  .flow-arrow { font-size: 28px; color: #3b82f6; }
+
+  /* ── Slide 4: Architecture ──────────────────── */
+  .slide-4 {
+    background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+  }
+  .slide-4 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 40px;
+  }
+  .arch-layers {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+  .arch-layer {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    padding: 28px 32px;
+    border-radius: 16px;
+    border-left: 4px solid;
+  }
+  .arch-layer.a { background: rgba(110, 231, 183, 0.05); border-color: #6ee7b7; }
+  .arch-layer.b { background: rgba(59, 130, 246, 0.05); border-color: #3b82f6; }
+  .arch-layer.c { background: rgba(167, 139, 250, 0.05); border-color: #a78bfa; }
+  .arch-layer .icon { font-size: 40px; }
+  .arch-layer .info h3 { font-size: 22px; font-weight: 600; margin-bottom: 4px; }
+  .arch-layer.a .info h3 { color: #6ee7b7; }
+  .arch-layer.b .info h3 { color: #3b82f6; }
+  .arch-layer.c .info h3 { color: #a78bfa; }
+  .arch-layer .info p { font-size: 15px; color: #94a3b8; line-height: 1.5; }
+
+  /* ── Slide 5: Demo ──────────────────────────── */
+  .slide-5 {
+    background: linear-gradient(135deg, #0a0a0a, #0f172a);
+    align-items: center;
+    text-align: center;
+  }
+  .slide-5 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, #6ee7b7, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .demo-features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    max-width: 900px;
+  }
+  .demo-feature {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .demo-feature .icon { font-size: 36px; margin-bottom: 12px; }
+  .demo-feature h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .demo-feature p { font-size: 14px; color: #94a3b8; line-height: 1.5; }
+  .slide-5 .url {
+    margin-top: 40px;
+    font-size: 18px;
+    color: #6ee7b7;
+    font-family: monospace;
+    background: rgba(110, 231, 183, 0.1);
+    padding: 12px 24px;
+    border-radius: 8px;
+  }
+
+  /* ── Slide 6: KeeperHub Integration ─────────── */
+  .slide-6 {
+    background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+  }
+  .slide-6 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 40px;
+  }
+  .integration-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .integration-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 28px;
+  }
+  .integration-card .tag {
+    display: inline-block;
+    background: rgba(110, 231, 183, 0.1);
+    color: #6ee7b7;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    border-radius: 12px;
+    margin-bottom: 12px;
+  }
+  .integration-card h3 { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+  .integration-card p { font-size: 15px; color: #94a3b8; line-height: 1.5; }
+
+  /* ── Slide 7: Technical ─────────────────────── */
+  .slide-7 {
+    background: linear-gradient(135deg, #0a0a0a, #0f172a);
+  }
+  .slide-7 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 40px;
+  }
+  .tech-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .tech-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 24px;
+  }
+  .tech-card .icon { font-size: 32px; margin-bottom: 12px; }
+  .tech-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+  .tech-card p { font-size: 14px; color: #94a3b8; line-height: 1.5; }
+  .tech-card .highlight {
+    color: #6ee7b7;
+    font-weight: 600;
+    font-size: 28px;
+    margin-bottom: 4px;
+  }
+
+  /* ── Slide 8: On-chain Proof ────────────────── */
+  .slide-8 {
+    background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+    align-items: center;
+    text-align: center;
+  }
+  .slide-8 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 40px;
+    background: linear-gradient(135deg, #6ee7b7, #3b82f6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .proof-card {
+    background: rgba(110, 231, 183, 0.05);
+    border: 1px solid rgba(110, 231, 183, 0.2);
+    border-radius: 20px;
+    padding: 48px;
+    max-width: 700px;
+    width: 100%;
+  }
+  .proof-card .label { font-size: 14px; color: #64748b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; }
+  .proof-card .tx-hash {
+    font-size: 16px;
+    font-family: monospace;
+    color: #6ee7b7;
+    word-break: break-all;
+    margin-bottom: 24px;
+  }
+  .proof-card .stats {
+    display: flex;
+    gap: 48px;
+    justify-content: center;
+  }
+  .proof-card .stat { text-align: center; }
+  .proof-card .stat .value { font-size: 32px; font-weight: 700; color: #6ee7b7; }
+  .proof-card .stat .label { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+  /* ── Slide 9: Impact ────────────────────────── */
+  .slide-9 {
+    background: linear-gradient(135deg, #0a0a0a, #0f172a);
+  }
+  .slide-9 h2 {
+    font-size: 48px;
+    font-weight: 700;
+    margin-bottom: 40px;
+    background: linear-gradient(135deg, #6ee7b7, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .impact-list {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+  .impact-item {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 20px 28px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+  }
+  .impact-item .icon { font-size: 28px; }
+  .impact-item .text { font-size: 18px; color: #e2e8f0; line-height: 1.5; }
+  .impact-item .text strong { color: #6ee7b7; }
+
+  /* ── Slide 10: Links ────────────────────────── */
+  .slide-10 {
+    background: linear-gradient(135deg, #0a0a0a, #1a1a2e);
+    align-items: center;
+    text-align: center;
+  }
+  .slide-10 h2 {
+    font-size: 56px;
+    font-weight: 800;
+    margin-bottom: 16px;
+    background: linear-gradient(135deg, #6ee7b7, #3b82f6, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .slide-10 .tagline {
+    font-size: 20px;
+    color: #94a3b8;
+    margin-bottom: 48px;
+  }
+  .links-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+  }
+  .link-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px 32px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    font-size: 18px;
+    color: #e2e8f0;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    min-width: 400px;
+    justify-content: center;
+  }
+  .link-item:hover {
+    background: rgba(110, 231, 183, 0.1);
+    border-color: rgba(110, 231, 183, 0.3);
+  }
+  .link-item .icon { font-size: 22px; }
+  .slide-10 .credit {
+    margin-top: 48px;
+    font-size: 14px;
+    color: #475569;
+  }
+
+  /* ── Navigation ─────────────────────────────── */
+  .nav-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.05);
+    z-index: 100;
+  }
+  .nav-progress {
+    height: 100%;
+    background: linear-gradient(90deg, #6ee7b7, #3b82f6);
+    transition: width 0.5s ease;
+    border-radius: 0 2px 2px 0;
+  }
+  .slide-counter {
+    position: fixed;
+    bottom: 16px;
+    right: 24px;
+    font-size: 14px;
+    color: #475569;
+    z-index: 100;
+  }
+  .pause-indicator {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    font-size: 14px;
+    color: #475569;
+    z-index: 100;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  .pause-indicator.visible {
+    opacity: 1;
+  }
+
+  /* ── Animations ─────────────────────────────── */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+  @keyframes contentRise {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .slide.active .animate-in {
+    animation: contentRise 0.6s ease forwards;
+  }
+  .slide.active .delay-1 { animation-delay: 0.1s; opacity: 0; }
+  .slide.active .delay-2 { animation-delay: 0.2s; opacity: 0; }
+  .slide.active .delay-3 { animation-delay: 0.3s; opacity: 0; }
+  .slide.active .delay-4 { animation-delay: 0.4s; opacity: 0; }
+</style>
+</head>
+<body>
+
+<!-- Slide 1: Title -->
+<div class="slide slide-1 active">
+  <div class="logo animate-in">🛡️</div>
+  <h1 class="animate-in delay-1">KeeperPilot</h1>
+  <div class="tagline animate-in delay-2">Autonomous Onchain Rebalancing Agent</div>
+  <div class="badges animate-in delay-3">
+    <div class="badge">Built with KeeperHub</div>
+    <div class="badge">x402 Pay-Per-Execution</div>
+    <div class="badge">Sepolia Live</div>
+  </div>
+</div>
+
+<!-- Slide 2: Problem -->
+<div class="slide slide-2">
+  <h2 class="animate-in">The Problem</h2>
+  <div class="problem-grid">
+    <div class="problem-card animate-in delay-1">
+      <div class="icon">⏰</div>
+      <h3>Manual Rebalancing</h3>
+      <p>DeFi portfolios drift out of target allocation. Manual rebalancing is slow, expensive, and easy to forget.</p>
+    </div>
+    <div class="problem-card animate-in delay-2">
+      <div class="icon">💸</div>
+      <h3>Gas Costs Add Up</h3>
+      <p>Every trade costs gas. Small rebalances get eaten by fees. Most agents can't cover their own costs.</p>
+    </div>
+    <div class="problem-card animate-in delay-3">
+      <div class="icon">🔒</div>
+      <h3>Custody Risk</h3>
+      <p>Private keys on servers = attack surface. No MEV protection. No audit trail. No accountability.</p>
+    </div>
+    <div class="problem-card animate-in delay-4">
+      <div class="icon">🧩</div>
+      <h3>Fragmented Tooling</h3>
+      <p>No single platform handles read → decide → execute → observe. Every agent rebuilds the same infra.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 3: Solution -->
+<div class="slide slide-3">
+  <h2 class="animate-in">The Solution</h2>
+  <div class="subtitle animate-in delay-1">Read → Decide → Execute → Observe — all through KeeperHub</div>
+  <div class="solution-flow animate-in delay-2">
+    <div class="flow-step">
+      <div class="icon">📖</div>
+      <div class="label">Read State</div>
+      <div class="desc">Free KeeperHub reads</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">🧠</div>
+      <div class="label">Decide</div>
+      <div class="desc">Drift bands + strategy</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">⚡</div>
+      <div class="label">Execute</div>
+      <div class="desc">MEV-protected via KeeperHub</div>
+    </div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">
+      <div class="icon">📊</div>
+      <div class="label">Observe</div>
+      <div class="desc">Live audit dashboard</div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 4: Architecture -->
+<div class="slide slide-4">
+  <h2 class="animate-in">Three Layers</h2>
+  <div class="arch-layers">
+    <div class="arch-layer a animate-in delay-1">
+      <div class="icon">🧠</div>
+      <div class="info">
+        <h3>Layer A — Strategy Engine</h3>
+        <p>Deterministic rebalance loop: read balances + ETH price, decide via drift bands, execute through KeeperHub. Reproducible demo. LLM layer for natural-language strategies via MCP.</p>
+      </div>
+    </div>
+    <div class="arch-layer b animate-in delay-2">
+      <div class="icon">💳</div>
+      <div class="info">
+        <h3>Layer B — x402 Gateway</h3>
+        <p>Pay-per-execution service. Clients pay USDC per call → agent fulfills via KeeperHub → returns tx link. Settles on Base USDC (x402) or Tempo USDC.e (MPP).</p>
+      </div>
+    </div>
+    <div class="arch-layer c animate-in delay-3">
+      <div class="icon">📊</div>
+      <div class="info">
+        <h3>Layer C — Audit Dashboard</h3>
+        <p>Live web UI streaming every read, decision, execution (with real tx link), retry, and x402 payment over SSE. Clickable links to Etherscan.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 5: Demo -->
+<div class="slide slide-5">
+  <h2 class="animate-in">Live Demo</h2>
+  <div class="demo-features animate-in delay-1">
+    <div class="demo-feature">
+      <div class="icon">🔄</div>
+      <h3>Agent Loop</h3>
+      <p>Runs every 60 seconds. Reads balances, drifts, executes rebalances automatically.</p>
+    </div>
+    <div class="demo-feature">
+      <div class="icon">📊</div>
+      <h3>Live Dashboard</h3>
+      <p>SSE-powered UI showing portfolio, agent status, audit trail, and real tx links.</p>
+    </div>
+    <div class="demo-feature">
+      <div class="icon">🔗</div>
+      <h3>Real Transactions</h3>
+      <p>Every execution produces a real Sepolia tx hash with Etherscan link.</p>
+    </div>
+  </div>
+  <div class="url animate-in delay-2">keeperpilot.onrender.com</div>
+</div>
+
+<!-- Slide 6: KeeperHub Integration -->
+<div class="slide slide-6">
+  <h2 class="animate-in">KeeperHub Integration</h2>
+  <div class="integration-grid">
+    <div class="integration-card animate-in delay-1">
+      <div class="tag">DIRECT EXECUTION</div>
+      <h3>SDK Client</h3>
+      <p>Typed TypeScript SDK wrapping transfer, contractCall, protocolAction. Idempotency keys, retry with backoff, poll with X-Poll-Interval-Hint.</p>
+    </div>
+    <div class="integration-card animate-in delay-2">
+      <div class="tag">x402 PAYMENTS</div>
+      <h3>Pay-Per-Call</h3>
+      <p>External clients pay USDC per execution. EIP-3009 verification. Replay protection. Base USDC settlement.</p>
+    </div>
+    <div class="integration-card animate-in delay-3">
+      <div class="tag">MCP SERVER</div>
+      <h3>Natural Language</h3>
+      <p>Drive the agent from Claude Code via KeeperHub MCP server. "Rebalance my portfolio" → agent executes.</p>
+    </div>
+    <div class="integration-card animate-in delay-4">
+      <div class="tag">GAS SPONSORSHIP</div>
+      <h3>Zero Gas</h3>
+      <p>Testnet gas sponsored by KeeperHub. MEV-protected private mempool. Smart gas estimation.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 7: Technical -->
+<div class="slide slide-7">
+  <h2 class="animate-in">Technical Stack</h2>
+  <div class="tech-grid">
+    <div class="tech-card animate-in delay-1">
+      <div class="icon">📦</div>
+      <div class="highlight">27</div>
+      <h3>Unit Tests</h3>
+      <p>All passing. Client retries, strategy math, x402 verification. No API key needed.</p>
+    </div>
+    <div class="tech-card animate-in delay-2">
+      <div class="icon">🛡️</div>
+      <div class="highlight">6</div>
+      <h3>Typed Errors</h3>
+      <p>AuthError, RateLimitError, SpendingCapError, PollTimeoutError. Programmatic handling.</p>
+    </div>
+    <div class="tech-card animate-in delay-3">
+      <div class="icon">🔁</div>
+      <div class="highlight">∞</div>
+      <h3>Agent Loop</h3>
+      <p>Every 60s: read → decide → execute → observe. Deterministic. Reproducible.</p>
+    </div>
+    <div class="tech-card animate-in delay-4">
+      <div class="icon">🏗️</div>
+      <div class="highlight">4</div>
+      <h3>Modules</h3>
+      <p>keeperhub SDK, strategy engine, x402 gateway, audit dashboard. Clean separation.</p>
+    </div>
+    <div class="tech-card animate-in delay-3">
+      <div class="icon">⚙️</div>
+      <div class="highlight">TS</div>
+      <h3>TypeScript Strict</h3>
+      <p>Full type safety. No any. Strict mode. Production-grade code quality.</p>
+    </div>
+    <div class="tech-card animate-in delay-4">
+      <div class="icon">🐳</div>
+      <div class="highlight">1</div>
+      <h3>Docker Command</h3>
+      <p>docker compose up → dashboard + x402 gateway. One line deployment.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 8: On-chain Proof -->
+<div class="slide slide-8">
+  <h2 class="animate-in">On-Chain Proof</h2>
+  <div class="proof-card animate-in delay-1">
+    <div class="label">Real Transaction via KeeperHub</div>
+    <div class="tx-hash">0xa2B4C546c78F74E9E81Abc2d6D69F94E9e43A23E</div>
+    <div class="stats">
+      <div class="stat">
+        <div class="value">2</div>
+        <div class="label">Real Txs Executed</div>
+      </div>
+      <div class="stat">
+        <div class="value">Sepolia</div>
+        <div class="label">Network</div>
+      </div>
+      <div class="stat">
+        <div class="value">✅</div>
+        <div class="label">On-Chain Verified</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 9: Impact -->
+<div class="slide slide-9">
+  <h2 class="animate-in">Why It Matters</h2>
+  <div class="impact-list">
+    <div class="impact-item animate-in delay-1">
+      <div class="icon">🤖</div>
+      <div class="text"><strong>Autonomous agents that pay for themselves</strong> — x402 gateway means the agent generates revenue to cover its own gas costs.</div>
+    </div>
+    <div class="impact-item animate-in delay-2">
+      <div class="icon">🏦</div>
+      <div class="text"><strong>Institutional-grade custody</strong> — private keys never leave KeeperHub's Turnkey enclave. MEV-protected routing.</div>
+    </div>
+    <div class="impact-item animate-in delay-3">
+      <div class="icon">📈</div>
+      <div class="text"><strong>Composable building block</strong> — any developer can fork, configure a strategy, and deploy in minutes.</div>
+    </div>
+    <div class="impact-item animate-in delay-4">
+      <div class="icon">🌍</div>
+      <div class="text"><strong>Multi-chain ready</strong> — Ethereum, Base, and more. Same SDK, same dashboard, same agent loop.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Slide 10: Links -->
+<div class="slide slide-10">
+  <h2 class="animate-in">KeeperPilot</h2>
+  <div class="tagline animate-in delay-1">Autonomous Onchain Rebalancing — Built with KeeperHub</div>
+  <div class="links-grid animate-in delay-2">
+    <a class="link-item" href="https://github.com/ubongn/keeperpilot">
+      <span class="icon">📦</span> GitHub — ubongn/keeperpilot
+    </a>
+    <a class="link-item" href="https://keeperpilot.onrender.com">
+      <span class="icon">🌐</span> Live Dashboard — keeperpilot.onrender.com
+    </a>
+    <a class="link-item" href="https://x.com/ubong_dev">
+      <span class="icon">𝕏</span> @ubong_dev
+    </a>
+    <a class="link-item" href="https://docs.keeperhub.com">
+      <span class="icon">📖</span> KeeperHub Docs
+    </a>
+  </div>
+  <div class="credit animate-in delay-3">Built for the KeeperHub Agents Onchain Hackathon — Aug 2026</div>
+</div>
+
+<!-- Navigation -->
+<div class="nav-bar"><div class="nav-progress" id="progress"></div></div>
+<div class="slide-counter" id="counter">1 / 10</div>
+<div class="pause-indicator" id="pause-indicator">⏸ PAUSED</div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const progress = document.getElementById('progress');
+  const counter = document.getElementById('counter');
+  const pauseIndicator = document.getElementById('pause-indicator');
+  const TOTAL = slides.length;
+  const INTERVAL = 7500; // 7.5s per slide
+  let current = 0;
+  let timer = null;
+  let paused = false;
+
+  function showSlide(n) {
+    slides.forEach(s => s.classList.remove('active'));
+    current = (n + TOTAL) % TOTAL;
+    slides[current].classList.add('active');
+    progress.style.width = ((current + 1) / TOTAL * 100) + '%';
+    counter.textContent = (current + 1) + ' / ' + TOTAL;
+  }
+
+  function startAutoPlay() {
+    timer = setInterval(() => showSlide(current + 1), INTERVAL);
+  }
+
+  function togglePause() {
+    paused = !paused;
+    if (paused) {
+      clearInterval(timer);
+      pauseIndicator.classList.add('visible');
+    } else {
+      startAutoPlay();
+      pauseIndicator.classList.remove('visible');
+    }
+  }
+
+  // Spacebar = silent pause/resume
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      togglePause();
+    }
+    // Arrow keys for manual navigation
+    if (e.code === 'ArrowRight') { showSlide(current + 1); }
+    if (e.code === 'ArrowLeft') { showSlide(current - 1); }
+  });
+
+  // Start
+  startAutoPlay();
+</script>
+</body>
+</html>
