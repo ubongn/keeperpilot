@@ -43,11 +43,6 @@ async function main() {
     maxRetries: 4,
   });
 
-  // HTTP surfaces. A PaaS (Railway / Render) injects a single public `PORT` and only
-  // proxies traffic to that one port — so when `PORT` is set we mount BOTH the dashboard
-  // and the x402 gateway on the one process (their routes don't collide: dashboard owns
-  // `/` + `/api/audit*`, gateway owns `/health` + `/execute`). Locally / in docker-compose
-  // we keep the classic two-port split (dashboard :3000, gateway :8787).
   const settlement = (env('X402_SETTLE', 'base-usdc') as 'base-usdc' | 'tempo-usdce');
   const payTo = (env('X402_RECEIVER', '0x0000000000000000000000000000000000000000') as `0x${string}`);
   const priceCents = envInt('X402_PRICE_CENTS', 1);
@@ -77,8 +72,8 @@ async function main() {
 
   if (Number.isFinite(paasPort) && paasPort > 0) {
     const server = express();
-    server.use(gatewayApp); // /health, /execute
-    server.use(dashboardApp); // /, /api/audit, /api/audit/stream
+    server.use(gatewayApp);
+    server.use(dashboardApp);
     server.listen(paasPort, () => {
       audit.record({ kind: 'system', level: 'info', message: `PaaS server on :${paasPort} (dashboard + x402 combined)` });
     });
@@ -91,7 +86,7 @@ async function main() {
     });
   }
 
-  // Layer A: strategy agent
+  // Layer A: strategy agent — reads real balances, caps trades to available
   const agent = new Agent({
     client,
     audit,
@@ -102,6 +97,7 @@ async function main() {
       target: { ethPct: envInt('AGENT_TARGET_ETH', 50), usdcPct: envInt('AGENT_TARGET_USDC', 50) },
       driftThresholdPct: envInt('AGENT_DRIFT_THRESHOLD_PCT', 5),
     },
+    minTradeEth: 0.001,
     priceSource: 'fallback',
     oracleAddress: env('KH_ORACLE_ADDRESS') as `0x${string}` | undefined,
     log: { info: (m, o) => log.info(o, m), warn: (m, o) => log.warn(o, m), error: (m, o) => log.error(o, m) },
@@ -113,29 +109,23 @@ async function main() {
     message: `KeeperPilot up — network=${network} dryRun=${dryRun} key=${apiKey ? 'set' : 'MISSING'}`,
   });
 
-  const loopMs = envInt('AGENT_LOOP_MS', 0);
-  const runOnce = async () => {
-    try {
-      await agent.tick();
-    } catch (e) {
-      audit.record({ kind: 'system', level: 'error', message: `tick failed: ${e instanceof Error ? e.message : e}` });
-      log.error({ err: e }, 'tick failed');
-    }
-  };
+  // Start agent loop (default: every 60s; set AGENT_LOOP_MS=0 for single tick)
+  const loopMs = envInt('AGENT_LOOP_MS', 60_000);
+  agent.start(loopMs);
+  log.info({ loopMs }, 'agent loop started');
 
-  if (loopMs > 0) {
-    log.info({ loopMs }, 'agent loop enabled');
-    await runOnce();
-    setInterval(runOnce, loopMs);
-  } else {
-    log.info('agent loop disabled (AGENT_LOOP_MS=0); run a single tick then idle');
-    await runOnce();
-    log.info('idle. dashboard + x402 gateway still serving.');
-  }
+  // Graceful shutdown
+  const shutdown = () => {
+    log.info('shutting down');
+    agent.stop();
+    audit.destroy();
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 main().catch((e) => {
-  // eslint-disable-next-line no-console
   console.error('fatal:', e);
   process.exit(1);
 });
