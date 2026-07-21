@@ -53,21 +53,38 @@ const DEMO_ETH_FALLBACK = '1.0';
 function extractResult(raw: unknown): string {
   if (!raw || typeof raw !== 'object') return '0';
   const r = raw as Record<string, unknown>;
+
+  // KeeperHub contract-call returns { executionId, result: ... }
+  // For read (simulate:true): result may be a string directly, or { data: ... }
   if ('result' in r && r.result !== null && r.result !== undefined) {
-    const res = r.result as Record<string, unknown>;
-    if ('data' in res) {
-      const data = res.data;
-      if (typeof data === 'string') return data;
-      if (Array.isArray(data) && data.length > 0) return String(data[0]);
+    const res = r.result;
+    // result is a string directly (e.g. "1500000000000000000")
+    if (typeof res === 'string') return res;
+    // result is an object with data field
+    if (typeof res === 'object' && res !== null) {
+      const resObj = res as Record<string, unknown>;
+      if ('data' in resObj) {
+        const data = resObj.data;
+        if (typeof data === 'string') return data;
+        if (Array.isArray(data) && data.length > 0) return String(data[0]);
+      }
+      // simulate response has simulatedReturnValue
+      if ('simulatedReturnValue' in resObj) {
+        return String(resObj.simulatedReturnValue);
+      }
     }
   }
-  // KeeperHub contract-call returns { executionId, result: { data: ... } }
+
+  // Fallback: look for executionId pattern
   if ('executionId' in r) {
-    const res = r as { result?: { data?: unknown } };
-    if (res.result?.data !== undefined) {
-      const d = res.result.data;
-      if (typeof d === 'string') return d;
-      if (Array.isArray(d) && d.length > 0) return String(d[0]);
+    const res = r as { result?: unknown };
+    if (res.result !== undefined && res.result !== null) {
+      if (typeof res.result === 'string') return res.result;
+      if (typeof res.result === 'object') {
+        const obj = res.result as Record<string, unknown>;
+        if ('data' in obj && typeof obj.data === 'string') return obj.data;
+        if ('simulatedReturnValue' in obj) return String(obj.simulatedReturnValue);
+      }
     }
   }
   return '0';
@@ -130,8 +147,8 @@ export class Agent {
           network,
           contractAddress: usdcAddress,
           abi: [...ERC20_BALANCE_ABI],
-          abiFunction: 'balanceOf',
-          args: [walletAddress],
+          functionName: 'balanceOf',
+          functionArgs: JSON.stringify([walletAddress]),
         },
         { simulate: true },
       );
@@ -140,8 +157,8 @@ export class Agent {
           network,
           contractAddress: usdcAddress,
           abi: [...ERC20_BALANCE_ABI],
-          abiFunction: 'decimals',
-          args: [],
+          functionName: 'decimals',
+          functionArgs: '[]',
         },
         { simulate: true },
       );
@@ -165,8 +182,8 @@ export class Agent {
             network: this.cfg.network,
             contractAddress: this.cfg.oracleAddress,
             abi: [{ name: 'latestAnswer', type: 'function', inputs: [], outputs: [{ type: 'int256' }] }],
-            abiFunction: 'latestAnswer',
-            args: [],
+            functionName: 'latestAnswer',
+            functionArgs: '[]',
           },
           { simulate: true },
         );

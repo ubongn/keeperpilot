@@ -29,9 +29,10 @@ export interface ContractCallRequest {
   contractAddress: string;
   /** ABI fragment of the function to call. */
   abi: unknown[];
-  abiFunction: string;
-  /** Positional args for the function, in order. */
-  args?: unknown[];
+  /** Function name (e.g. "balanceOf"). */
+  functionName: string;
+  /** Positional args as JSON string (e.g. "[\"0x...\"]"). */
+  functionArgs?: string;
   /** Provide a value for payable calls (native sent). */
   value?: string;
   gasLimitMultiplier?: string;
