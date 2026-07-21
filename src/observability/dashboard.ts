@@ -277,7 +277,13 @@ const DASHBOARD_HTML = /* html */ `<!doctype html>
 
 <header>
   <div class="brand"><div class="logo">🛡️</div><div><h1>KeeperPilot</h1><div class="sub">Autonomous Onchain Rebalancing Agent</div></div></div>
-  <div class="header-right"><span class="net-pill" id="net-pill">Sepolia</span><div class="badge-live"><span class="live-dot"></span> Agent Active</div></div>
+  <div class="header-right">
+    <a href="https://github.com/ubongn/keeperpilot" target="_blank" style="text-decoration:none;color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);transition:all .2s" onmouseover="this.style.borderColor='var(--purple)';this.style.color='var(--purple)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-2)'">📦 GitHub</a>
+    <a href="https://x.com/ubong_dev" target="_blank" style="text-decoration:none;color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);transition:all .2s" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-2)'">🐦 X</a>
+    <a href="/architecture.html" target="_blank" style="text-decoration:none;color:var(--text-2);font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;border:1px solid var(--border);background:var(--card);transition:all .2s" onmouseover="this.style.borderColor='var(--acc)';this.style.color='var(--acc)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--text-2)'">🏗️ Architecture</a>
+    <span class="net-pill" id="net-pill">Sepolia</span>
+    <div class="badge-live"><span class="live-dot"></span> Agent Active</div>
+  </div>
 </header>
 
 <main>
@@ -291,8 +297,8 @@ const DASHBOARD_HTML = /* html */ `<!doctype html>
 
   <div class="wallet-card">
     <div class="label">🔗 KeeperHub Wallet</div>
-    <div class="addr mono" id="wallet-addr">Loading…</div>
-    <div class="net" id="wallet-net">Sepolia Testnet (11155111)</div>
+    <div class="addr mono" id="wallet-addr"><a href="https://sepolia.etherscan.io/address/" target="_blank" id="wallet-link" style="color:inherit;text-decoration:none;border-bottom:1px dashed var(--purple);transition:color .2s" onmouseover="this.style.color='var(--purple)'" onmouseout="this.style.color='inherit'">Loading…</a></div>
+    <div class="net" id="wallet-net"><a href="https://sepolia.etherscan.io/" target="_blank" style="color:var(--blue);text-decoration:none;font-weight:600">Sepolia Testnet (11155111) →</a></div>
   </div>
 
   <div class="panels">
@@ -341,7 +347,13 @@ const DASHBOARD_HTML = /* html */ `<!doctype html>
 </main>
 
 <footer>
-  <p>Built for KeeperHub Agents Onchain Hackathon · DoraHacks</p>
+  <p style="margin-bottom:8px">Built for <a href="https://dorahacks.io" target="_blank" style="color:var(--purple);text-decoration:none;font-weight:600">KeeperHub Agents Onchain Hackathon</a> · DoraHacks</p>
+  <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-bottom:10px">
+    <a href="https://github.com/ubongn/keeperpilot" target="_blank" style="color:var(--text-2);text-decoration:none;font-size:12px;font-weight:600">📦 GitHub</a>
+    <a href="/architecture.html" target="_blank" style="color:var(--text-2);text-decoration:none;font-size:12px;font-weight:600">🏗️ Architecture</a>
+    <a href="https://x.com/ubong_dev" target="_blank" style="color:var(--text-2);text-decoration:none;font-size:12px;font-weight:600">🐦 X</a>
+    <a href="https://docs.keeperhub.com" target="_blank" style="color:var(--text-2);text-decoration:none;font-size:12px;font-weight:600">📚 Docs</a>
+  </div>
   <div class="fb-list"><span class="fb fb-keeper">KeeperHub SDK</span><span class="fb fb-sepolia">Sepolia Testnet</span><span class="fb fb-x402">x402 Protocol</span><span class="fb fb-x402">Gas-Sponsored</span></div>
 </footer>
 
@@ -359,8 +371,10 @@ async function loadPortfolio(){
     document.getElementById('p-total').textContent='$'+parseFloat(d.total).toFixed(2);
     document.getElementById('p-price').textContent='ETH @ $'+d.ethPrice;
     document.getElementById('p-ethprice').textContent='$'+d.ethPrice;
-    document.getElementById('wallet-addr').textContent=d.wallet;
-    document.getElementById('wallet-net').textContent='Sepolia Testnet ('+d.network+')';
+    // Make wallet address clickable (Etherscan link)
+    const walletLink=document.getElementById('wallet-link');
+    if(walletLink){walletLink.textContent=d.wallet;walletLink.href='https://sepolia.etherscan.io/address/'+d.wallet;}
+    document.getElementById('wallet-net').innerHTML='<a href="https://sepolia.etherscan.io/" target="_blank" style="color:var(--blue);text-decoration:none;font-weight:600">Sepolia Testnet ('+d.network+') →</a>';
     const eP=parseFloat(d.allocation.eth),uP=parseFloat(d.allocation.usdc);
     document.getElementById('alloc-eth').style.width=Math.max(eP,eP>0?8:0)+'%';
     document.getElementById('alloc-usdc').style.width=Math.max(uP,uP>0?8:0)+'%';
