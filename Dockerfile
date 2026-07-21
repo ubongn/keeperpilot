@@ -18,6 +18,7 @@ COPY --from=build /app/dist ./dist
 COPY web ./web
 COPY public ./public
 COPY docs ./docs
+RUN mkdir -p data && chown node:node data
 # non-root user
 USER node
 EXPOSE 3000 8787
