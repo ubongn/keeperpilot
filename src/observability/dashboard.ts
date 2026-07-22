@@ -150,6 +150,27 @@ export function createDashboard(ctx: DashboardContext) {
     }
   });
 
+  // ── Pitch deck ──
+  app.get('/pitch-deck.html', (_req, res) => {
+    try {
+      const here = dirname(fileURLToPath(import.meta.url));
+      const candidates = [
+        join(process.cwd(), 'public', 'pitch-deck.html'),
+        join(here, '..', '..', '..', 'public', 'pitch-deck.html'),
+      ];
+      for (const p of candidates) {
+        try {
+          const html = readFileSync(p, 'utf-8');
+          res.type('html').send(html);
+          return;
+        } catch { /* try next */ }
+      }
+      res.status(404).send('Pitch deck not found');
+    } catch (e) {
+      res.status(500).send('Error loading pitch deck');
+    }
+  });
+
   return app;
 }
 
