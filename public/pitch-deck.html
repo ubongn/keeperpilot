@@ -416,19 +416,6 @@
     color: #475569;
     z-index: 100;
   }
-  .pause-indicator {
-    position: fixed;
-    top: 24px;
-    right: 24px;
-    font-size: 14px;
-    color: #475569;
-    z-index: 100;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
-  .pause-indicator.visible {
-    opacity: 1;
-  }
 
   /* ── Animations ─────────────────────────────── */
   @keyframes float {
@@ -711,13 +698,11 @@
 <!-- Navigation -->
 <div class="nav-bar"><div class="nav-progress" id="progress"></div></div>
 <div class="slide-counter" id="counter">1 / 10</div>
-<div class="pause-indicator" id="pause-indicator">⏸ PAUSED</div>
 
 <script>
   const slides = document.querySelectorAll('.slide');
   const progress = document.getElementById('progress');
   const counter = document.getElementById('counter');
-  const pauseIndicator = document.getElementById('pause-indicator');
   const TOTAL = slides.length;
   const INTERVAL = 7500; // 7.5s per slide
   let current = 0;
@@ -740,10 +725,8 @@
     paused = !paused;
     if (paused) {
       clearInterval(timer);
-      pauseIndicator.classList.add('visible');
     } else {
       startAutoPlay();
-      pauseIndicator.classList.remove('visible');
     }
   }
 
